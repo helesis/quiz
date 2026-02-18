@@ -356,7 +356,7 @@ let detailMetricId = null;
 
 // ── SM-2 ──
 function defaultSM2(){ return {ef:2.5,interval:0,reps:0,nextReview:Date.now()} }
-function isDue(sm2){ return (sm2?.nextReview||0) <= Date.now() }
+function isDue(sm2){ if(!sm2) return true; if(sm2.reps===0&&sm2.interval===0) return true; return (sm2.nextReview||0)<=Date.now(); }
 function sm2Calc(sm2, q){ // q: 0=hard,1=med,2=easy
   let {ef,interval,reps} = sm2;
   if(q===0){reps=0;interval=1;}
@@ -816,7 +816,8 @@ function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 function overlayClose(e,id){ if(e.target===document.getElementById(id)) closeModal(id); }
 
 // ── PWA UPDATE ──
-function pwaUpdate(){
+async function pwaUpdate(){
+  await persist();
   const url=new URL(location.href);
   url.searchParams.set('v',String(Date.now()));
   location.href=url.toString();
