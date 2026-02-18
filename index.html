@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#080c18">
+<title>KPI Quiz</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+:root {
+  --bg: #080c18;
+  --s1: #0e1525;
+  --s2: #151e30;
+  --s3: #1c2840;
+  --border: #1e2d45;
+  --border2: #263550;
+  --accent: #38bdf8;
+  --accent2: #f97316;
+  --green: #34d399;
+  --red: #f87171;
+  --yellow: #fbbf24;
+  --text: #e2eaf7;
+  --muted: #4d6585;
+  --muted2: #7a96b5;
+  --fd: 'Syne', sans-serif;
+  --fm: 'JetBrains Mono', monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--fm);font-size:14px}
+
+/* bg glow */
+body::before{
+  content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse 60% 40% at 80% 10%,rgba(56,189,248,.05),transparent),
+             radial-gradient(ellipse 50% 50% at 20% 90%,rgba(249,115,22,.04),transparent);
+  pointer-events:none
+}
+
+/* layout */
+#wrap{position:relative;z-index:1;max-width:500px;margin:0 auto;height:100%;display:flex;flex-direction:column}
+
+/* header */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 16px 10px;flex-shrink:0
+}
+.logo{font-family:var(--fd);font-weight:800;font-size:18px;letter-spacing:-0.5px}
+.logo b{color:var(--accent)}
+.streak-pill{
+  display:flex;align-items:center;gap:5px;
+  background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.25);
+  border-radius:20px;padding:5px 12px;
+  font-family:var(--fd);font-weight:700;font-size:13px;color:var(--accent2)
+}
+
+/* tabs */
+.tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;padding:0 16px}
+.tab{
+  flex:1;padding:10px 4px;background:none;border:none;border-bottom:2px solid transparent;
+  color:var(--muted2);font-family:var(--fd);font-weight:600;font-size:12px;letter-spacing:.5px;
+  cursor:pointer;transition:.2s;margin-bottom:-1px
+}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* content */
+.content{flex:1;overflow-y:auto;padding:14px 16px 24px}
+.screen{display:none}
+.screen.active{display:block;animation:fi .25s ease}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* cards */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
+.card-head{font-family:var(--fd);font-weight:700;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted2);margin-bottom:12px}
+
+/* stat grid */
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.sbox{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+.snum{font-family:var(--fd);font-weight:800;font-size:26px;color:var(--accent)}
+.slbl{font-size:10px;color:var(--muted);margin-top:2px}
+
+/* buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border:none;border-radius:10px;font-family:var(--fd);font-weight:700;font-size:13px;
+  cursor:pointer;transition:all .15s;padding:12px 18px;width:100%
+}
+.btn:active{transform:scale(.97)}
+.btn-blue{background:var(--accent);color:#07111f}
+.btn-ghost{background:var(--s2);color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover{border-color:var(--border2)}
+.btn-red{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.25)}
+.btn-sm{padding:7px 12px;font-size:11px;width:auto;border-radius:8px}
+.btn-green{background:var(--green);color:#07111f}
+
+/* form */
+label{display:block;font-size:10px;letter-spacing:.5px;color:var(--muted2);margin-bottom:5px}
+input,select{
+  width:100%;background:var(--s2);border:1px solid var(--border);border-radius:9px;
+  color:var(--text);font-family:var(--fm);font-size:13px;padding:10px 12px;outline:none;
+  transition:border-color .2s;margin-bottom:12px;-webkit-appearance:none
+}
+input:focus,select:focus{border-color:var(--accent)}
+select option{background:var(--s1)}
+
+/* ── DATA ENTRY ── */
+.metric-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 12px;background:var(--s2);border:1px solid var(--border);
+  border-radius:9px;margin-bottom:6px;cursor:pointer;transition:.15s
+}
+.metric-row:hover{border-color:var(--border2)}
+.metric-name{font-family:var(--fd);font-weight:600;font-size:13px}
+.metric-meta{font-size:11px;color:var(--muted)}
+.metric-badge{font-size:10px;color:var(--accent);background:rgba(56,189,248,.1);border-radius:5px;padding:2px 7px}
+
+/* month grid */
+.mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.mcell{background:var(--s3);border:1px solid var(--border);border-radius:8px;padding:6px}
+.mcell-label{font-size:9px;color:var(--muted);text-align:center;margin-bottom:4px;letter-spacing:.5px}
+.mcell input{
+  background:transparent;border:none;border-bottom:1px solid var(--border2);
+  border-radius:0;padding:4px 2px;text-align:center;font-size:13px;font-weight:500;
+  margin-bottom:0;width:100%
+}
+.mcell input:focus{border-bottom-color:var(--accent);outline:none}
+.mcell input.has-val{color:var(--green)}
+
+/* ── QUIZ ── */
+.qmeta{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-size:11px;color:var(--muted2)}
+.pbbar{height:3px;background:var(--border);border-radius:2px;margin-bottom:20px;overflow:hidden}
+.pbfill{height:100%;background:var(--accent);transition:width .4s ease}
+.q-tag{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);margin-bottom:6px}
+.q-text{font-family:var(--fd);font-size:21px;font-weight:700;line-height:1.3;margin-bottom:24px}
+
+.ans-row{display:flex;gap:8px;margin-bottom:14px}
+.ans-row input{
+  flex:1;margin-bottom:0;font-size:20px;text-align:center;
+  letter-spacing:1px;border-radius:10px;padding:13px
+}
+.ans-row .btn{width:auto;padding:13px 18px;flex-shrink:0}
+
+.result{border-radius:10px;padding:14px 16px;margin-bottom:14px;display:none}
+.result.ok{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25)}
+.result.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25)}
+.result-lbl{font-family:var(--fd);font-weight:700;font-size:13px;margin-bottom:3px}
+.result-lbl.ok{color:var(--green)}
+.result-lbl.bad{color:var(--red)}
+.result-ans{font-size:19px;font-weight:500}
+
+.diff-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;display:none}
+.dbtn{padding:11px 6px;border-radius:9px;border:none;font-family:var(--fd);font-weight:700;font-size:11px;cursor:pointer;transition:.15s}
+.dbtn:active{transform:scale(.95)}
+.d-hard{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.25)}
+.d-med{background:rgba(251,191,36,.12);color:var(--yellow);border:1px solid rgba(251,191,36,.25)}
+.d-easy{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.25)}
+
+.no-q{text-align:center;padding:50px 20px;color:var(--muted)}
+.no-q .icon{font-size:44px;margin-bottom:14px}
+.no-q h3{font-family:var(--fd);font-size:17px;color:var(--text);margin-bottom:7px}
+
+.done-screen{text-align:center;padding:36px 20px}
+.done-icon{font-size:56px;margin-bottom:14px}
+.done-title{font-family:var(--fd);font-weight:800;font-size:26px;margin-bottom:6px}
+.done-sub{color:var(--muted2);font-size:12px;margin-bottom:26px}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:200;display:none;align-items:flex-end}
+.overlay.open{display:flex}
+.modal{background:var(--s1);border:1px solid var(--border);border-radius:20px 20px 0 0;padding:20px;width:100%;max-height:90vh;overflow-y:auto;animation:su .3s ease}
+@keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:36px;height:3px;background:var(--border);border-radius:2px;margin:0 auto 18px}
+.modal-title{font-family:var(--fd);font-weight:700;font-size:17px;margin-bottom:16px}
+
+/* stats */
+.stat-line{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--s2);border-radius:8px;margin-bottom:5px;font-size:12px}
+.sl-q{color:var(--text);flex:1}
+.sl-v{color:var(--accent);font-weight:500;margin:0 10px}
+.sl-due{font-size:10px}
+
+.chip{display:inline-block;padding:3px 8px;border-radius:5px;font-size:10px;font-weight:600;font-family:var(--fd)}
+.chip-new{background:rgba(56,189,248,.12);color:var(--accent)}
+.chip-rev{background:rgba(251,191,36,.12);color:var(--yellow)}
+
+/* reset confirm */
+.reset-section{margin-top:10px;padding-top:14px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <div class="logo">KPI<b>Quiz</b></div>
+    <div class="streak-pill">🔥 <span id="streakNum">0</span></div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('home')">Ana Sayfa</button>
+    <button class="tab" onclick="showTab('data')">Veriler</button>
+    <button class="tab" onclick="showTab('quiz')">Quiz</button>
+    <button class="tab" onclick="showTab('stats')">İstatistik</button>
+  </div>
+
+  <div class="content">
+
+    <!-- HOME -->
+    <div class="screen active" id="tab-home">
+      <div class="sgrid">
+        <div class="sbox"><div class="snum" id="hTotal">0</div><div class="slbl">Toplam Soru</div></div>
+        <div class="sbox"><div class="snum" id="hDue">0</div><div class="slbl">Bugün Bekleyen</div></div>
+        <div class="sbox"><div class="snum" id="hLearned">0</div><div class="slbl">Öğrenildi</div></div>
+        <div class="sbox"><div class="snum" id="hAcc">—</div><div class="slbl">Başarı %</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head">Bugünkü Seans</div>
+        <p style="font-size:12px;color:var(--muted2);margin-bottom:14px" id="hSub">Veri sekmesinden metrik ekle.</p>
+        <button class="btn btn-blue" onclick="showTab('quiz')">▶ Teste Başla</button>
+      </div>
+      <div class="card reset-section">
+        <div class="card-head">Öğrenme Sıfırlama</div>
+        <p style="font-size:12px;color:var(--muted2);margin-bottom:12px">Tüm soruların öğrenme geçmişini sıfırla — sanki hiç quiz yapmamış gibi yeniden başla.</p>
+        <button class="btn btn-red" onclick="confirmReset()">↺ Tüm İlerlemeyi Sıfırla</button>
+      </div>
+    </div>
+
+    <!-- DATA -->
+    <div class="screen" id="tab-data">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div style="font-family:var(--fd);font-weight:700;font-size:16px">Metrikler</div>
+        <button class="btn btn-blue btn-sm" onclick="openAddMetric()">+ Yeni Metrik</button>
+      </div>
+      <div id="metricList"></div>
+    </div>
+
+    <!-- QUIZ -->
+    <div class="screen" id="tab-quiz">
+      <div id="quizArea"></div>
+    </div>
+
+    <!-- STATS -->
+    <div class="screen" id="tab-stats">
+      <div class="card">
+        <div class="card-head">Son Seanslar</div>
+        <div id="sessionList"></div>
+      </div>
+      <div class="card">
+        <div class="card-head">Soru Durumları</div>
+        <div id="qStatusList"></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /wrap -->
+
+<!-- MODAL: Add/Edit Metric -->
+<div class="overlay" id="metricModal" onclick="overlayClose(event,'metricModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="mmTitle">Yeni Metrik</div>
+    <label>METRİK ADI</label>
+    <input id="mName" placeholder="Örn: Doluluk Oranı, ADR, Gıda Maliyeti %">
+    <label>BİRİM (opsiyonel)</label>
+    <input id="mUnit" placeholder="Örn: %, TL, EUR — boş bırakabilirsin">
+    <label>YIL</label>
+    <select id="mYear"></select>
+    <label>AYLIK DEĞERLER</label>
+    <div class="mgrid" id="monthGrid"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('metricModal')">İptal</button>
+      <button class="btn btn-blue" style="flex:1" onclick="saveMetric()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Reset confirm -->
+<div class="overlay" id="resetModal" onclick="overlayClose(event,'resetModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">İlerlemeyi Sıfırla</div>
+    <p style="font-size:13px;color:var(--muted2);margin-bottom:20px;line-height:1.6">
+      Tüm soruların SM-2 verileri silinecek. Soru ve değerlerin korunur, sadece öğrenme süreci sıfırlanır.
+    </p>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('resetModal')">Vazgeç</button>
+      <button class="btn btn-red" style="flex:1" onclick="doReset()">Evet, Sıfırla</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Metric detail (edit/delete) -->
+<div class="overlay" id="detailModal" onclick="overlayClose(event,'detailModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="dmTitle"></div>
+    <div class="mgrid" id="dmGrid"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-ghost btn-sm" style="flex:1" onclick="editMetric()">✏ Düzenle</button>
+      <button class="btn btn-red btn-sm" style="flex:1" onclick="deleteMetric()">🗑 Sil</button>
+    </div>
+    <div style="margin-top:8px">
+      <button class="btn btn-ghost" onclick="resetMetric()">↺ Bu metriği sıfırla</button>
+    </div>
+    <div style="margin-top:8px">
+      <button class="btn btn-ghost" onclick="closeModal('detailModal')">Kapat</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+const MONTH_SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+
+// ── DATA MODEL ──
+// metrics: [{id, name, unit, year, values:[v0..v11], sm2:[{ef,interval,reps,nextReview}x12]}]
+// sessions: [{date, correct, wrong}]
+let metrics = [];
+let sessions = [];
+let streak = 0;
+
+// quiz runtime
+let quizQueue = [];
+let currentCard = null; // {metricIdx, monthIdx, question, answer}
+let sessionC = 0, sessionW = 0;
+let editingMetricId = null;
+let detailMetricId = null;
+
+// ── SM-2 ──
+function defaultSM2(){ return {ef:2.5,interval:0,reps:0,nextReview:Date.now()} }
+function isDue(sm2){ return (sm2?.nextReview||0) <= Date.now() }
+function sm2Calc(sm2, q){ // q: 0=hard,1=med,2=easy
+  let {ef,interval,reps} = sm2;
+  if(q===0){reps=0;interval=1;}
+  else{
+    if(reps===0) interval=1;
+    else if(reps===1) interval=3;
+    else interval=Math.round(interval*ef);
+    reps++;
+    ef=Math.max(1.3,ef+0.1-(2-q)*(0.08+(2-q)*0.02));
+  }
+  return {ef,interval,reps,nextReview:Date.now()+interval*86400000};
+}
+
+// ── STORAGE ──
+async function persist(){
+  try{
+    await window.storage.set('metrics2',JSON.stringify(metrics));
+    await window.storage.set('sessions2',JSON.stringify(sessions));
+    await window.storage.set('streak2',String(streak));
+  }catch(e){}
+}
+async function hydrate(){
+  try{
+    const m=await window.storage.get('metrics2');
+    if(m) metrics=JSON.parse(m.value);
+    const s=await window.storage.get('sessions2');
+    if(s) sessions=JSON.parse(s.value);
+    const st=await window.storage.get('streak2');
+    if(st) streak=parseInt(st.value)||0;
+  }catch(e){}
+  refreshAll();
+}
+
+// ── TABS ──
+function showTab(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  [...document.querySelectorAll('.tab')].find(t=>t.textContent.includes(
+    name==='home'?'Ana':name==='data'?'Veri':name==='quiz'?'Quiz':'İsta'
+  ))?.classList.add('active');
+  if(name==='home') renderHome();
+  if(name==='data') renderData();
+  if(name==='quiz') startQuiz();
+  if(name==='stats') renderStats();
+}
+
+// ── HOME ──
+function allCards(){
+  const cards=[];
+  metrics.forEach((m,mi)=>{
+    m.values.forEach((v,vi)=>{
+      if(v===''||v===null||v===undefined) return;
+      if(!m.sm2) m.sm2=Array(12).fill(null).map(defaultSM2);
+      cards.push({metricIdx:mi,monthIdx:vi});
+    });
+  });
+  return cards;
+}
+function renderHome(){
+  const all=allCards();
+  const due=all.filter(c=>isDue(metrics[c.metricIdx].sm2[c.monthIdx]));
+  const learned=all.filter(c=>metrics[c.metricIdx].sm2[c.monthIdx]?.reps>=3);
+  const tc=sessions.reduce((a,s)=>a+s.correct,0);
+  const tw=sessions.reduce((a,s)=>a+s.wrong,0);
+  const acc=tc+tw>0?Math.round(tc/(tc+tw)*100):null;
+  document.getElementById('hTotal').textContent=all.length;
+  document.getElementById('hDue').textContent=due.length;
+  document.getElementById('hLearned').textContent=learned.length;
+  document.getElementById('hAcc').textContent=acc!==null?acc+'%':'—';
+  document.getElementById('streakNum').textContent=streak;
+  document.getElementById('hSub').textContent=
+    all.length===0?'Veri sekmesinden metrik ekle.':
+    due.length>0?`${due.length} soru tekrar zamanı geldi.`:
+    'Tüm sorular güncel! Yeni veri ekleyebilirsin.';
+}
+
+// ── DATA ──
+function renderData(){
+  const el=document.getElementById('metricList');
+  if(metrics.length===0){
+    el.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:13px">Henüz metrik yok.<br>+ Yeni Metrik ile başla.</div>';
+    return;
+  }
+  el.innerHTML=metrics.map(m=>{
+    const filled=m.values.filter(v=>v!==''&&v!==null&&v!==undefined).length;
+    return `<div class="metric-row" onclick="openDetail('${m.id}')">
+      <div>
+        <div class="metric-name">${m.name}${m.unit?' <span style="color:var(--muted);font-size:11px">(${m.unit})</span>':''}</div>
+        <div class="metric-meta">${m.year} · ${filled}/12 ay girildi</div>
+      </div>
+      <span class="metric-badge">${filled} soru</span>
+    </div>`;
+  }).join('');
+}
+
+// ── MODAL: ADD METRIC ──
+function openAddMetric(){
+  editingMetricId=null;
+  document.getElementById('mmTitle').textContent='Yeni Metrik';
+  document.getElementById('mName').value='';
+  document.getElementById('mUnit').value='';
+  buildYearSelect();
+  buildMonthGrid(Array(12).fill(''));
+  openModal('metricModal');
+}
+function buildYearSelect(){
+  const sel=document.getElementById('mYear');
+  const cur=new Date().getFullYear();
+  sel.innerHTML=[cur-1,cur,cur+1].map(y=>`<option value="${y}">${y}</option>`).join('');
+  sel.value=cur;
+}
+function buildMonthGrid(vals){
+  document.getElementById('monthGrid').innerHTML=MONTH_SHORT.map((m,i)=>`
+    <div class="mcell">
+      <div class="mcell-label">${m}</div>
+      <input type="text" inputmode="decimal" id="mv${i}" value="${vals[i]||''}"
+        class="${vals[i]?'has-val':''}"
+        oninput="this.className=this.value?'has-val':''"
+        placeholder="—">
+    </div>`).join('');
+}
+function saveMetric(){
+  const name=document.getElementById('mName').value.trim();
+  const unit=document.getElementById('mUnit').value.trim();
+  const year=parseInt(document.getElementById('mYear').value);
+  const vals=Array.from({length:12},(_,i)=>document.getElementById('mv'+i).value.trim());
+  if(!name){alert('Metrik adı zorunlu');return;}
+
+  if(editingMetricId){
+    const m=metrics.find(m=>m.id===editingMetricId);
+    if(m){
+      m.name=name;m.unit=unit;m.year=year;
+      // update values, reset sm2 only for changed cells
+      vals.forEach((v,i)=>{
+        if(v!==m.values[i]){
+          m.values[i]=v;
+          if(!m.sm2) m.sm2=Array(12).fill(null).map(defaultSM2);
+          m.sm2[i]=defaultSM2();
+        }
+      });
+    }
+  } else {
+    metrics.push({
+      id:Date.now().toString(),
+      name,unit,year,
+      values:vals,
+      sm2:Array(12).fill(null).map(defaultSM2)
+    });
+  }
+  persist();closeModal('metricModal');renderData();renderHome();
+}
+
+// ── MODAL: DETAIL ──
+function openDetail(id){
+  detailMetricId=id;
+  const m=metrics.find(m=>m.id===id);
+  document.getElementById('dmTitle').textContent=`${m.name} ${m.year}`;
+  document.getElementById('dmGrid').innerHTML=MONTH_SHORT.map((mn,i)=>`
+    <div class="mcell" style="cursor:default">
+      <div class="mcell-label">${mn}</div>
+      <div style="text-align:center;font-size:13px;padding:4px 2px;font-weight:500;color:${m.values[i]?'var(--green)':'var(--muted)'}">
+        ${m.values[i]||'—'}
+      </div>
+    </div>`).join('');
+  openModal('detailModal');
+}
+function editMetric(){
+  closeModal('detailModal');
+  const m=metrics.find(m=>m.id===detailMetricId);
+  editingMetricId=detailMetricId;
+  document.getElementById('mmTitle').textContent='Metriği Düzenle';
+  document.getElementById('mName').value=m.name;
+  document.getElementById('mUnit').value=m.unit||'';
+  buildYearSelect();
+  document.getElementById('mYear').value=m.year;
+  buildMonthGrid(m.values);
+  openModal('metricModal');
+}
+function deleteMetric(){
+  if(!confirm('Bu metriği silmek istiyor musun?')) return;
+  metrics=metrics.filter(m=>m.id!==detailMetricId);
+  persist();closeModal('detailModal');renderData();renderHome();
+}
+function resetMetric(){
+  const m=metrics.find(m=>m.id===detailMetricId);
+  if(m) m.sm2=Array(12).fill(null).map(defaultSM2);
+  persist();closeModal('detailModal');renderHome();alert('Bu metriğin öğrenme geçmişi sıfırlandı.');
+}
+
+// ── RESET ALL ──
+function confirmReset(){ openModal('resetModal'); }
+function doReset(){
+  metrics.forEach(m=>{ m.sm2=Array(12).fill(null).map(defaultSM2); });
+  sessions=[];streak=0;
+  persist();closeModal('resetModal');refreshAll();
+  alert('Tüm ilerleme sıfırlandı.');
+}
+
+// ── QUIZ ──
+function startQuiz(){
+  sessionC=0;sessionW=0;
+  quizQueue=[];
+  // collect all due cards
+  metrics.forEach((m,mi)=>{
+    if(!m.sm2) m.sm2=Array(12).fill(null).map(defaultSM2);
+    m.values.forEach((v,vi)=>{
+      if(v===''||v===null||v===undefined) return;
+      if(isDue(m.sm2[vi])) quizQueue.push({metricIdx:mi,monthIdx:vi});
+    });
+  });
+  // shuffle
+  for(let i=quizQueue.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));[quizQueue[i],quizQueue[j]]=[quizQueue[j],quizQueue[i]];
+  }
+  if(quizQueue.length===0){
+    document.getElementById('quizArea').innerHTML=`
+      <div class="no-q">
+        <div class="icon">✅</div>
+        <h3>Bugün tamamlandı!</h3>
+        <p style="font-size:12px;margin-top:6px">Tüm sorular güncel. Yeni veri ekle veya bekle.</p>
+      </div>`;
+    return;
+  }
+  nextQ();
+}
+
+function nextQ(){
+  if(quizQueue.length===0){ showDone(); return; }
+  const card=quizQueue.shift();
+  currentCard=card;
+  const m=metrics[card.metricIdx];
+  const monthName=MONTHS[card.monthIdx];
+  const ans=m.values[card.monthIdx];
+  const unit=m.unit?' '+m.unit:'';
+  const total=sessionC+sessionW+quizQueue.length+1;
+  const done=sessionC+sessionW;
+  const pct=total>0?(done/total)*100:0;
+
+  document.getElementById('quizArea').innerHTML=`
+    <div class="qmeta">
+      <span>${done+1} / ${total}</span>
+      <span class="chip ${m.sm2[card.monthIdx].reps===0?'chip-new':'chip-rev'}">${m.sm2[card.monthIdx].reps===0?'YENİ':'TEKRAR'}</span>
+    </div>
+    <div class="pbbar"><div class="pbfill" style="width:${pct}%"></div></div>
+    <div class="q-tag">${m.year} · ${monthName}</div>
+    <div class="q-text">${m.name}${m.unit?' ('+m.unit+')':''}</div>
+    <div class="ans-row">
+      <input type="text" id="aInput" inputmode="decimal" placeholder="Cevabın..."
+        onkeydown="if(event.key==='Enter')checkAns()">
+      <button class="btn btn-blue" style="width:auto;padding:13px 16px" onclick="checkAns()">→</button>
+    </div>
+    <div class="result" id="res">
+      <div class="result-lbl" id="resLbl"></div>
+      <div class="result-ans" id="resAns"></div>
+    </div>
+    <div class="diff-row" id="drow">
+      <button class="dbtn d-hard" onclick="rate(0)">😓 Zor</button>
+      <button class="dbtn d-med" onclick="rate(1)">🤔 Orta</button>
+      <button class="dbtn d-easy" onclick="rate(2)">😊 Kolay</button>
+    </div>`;
+  document.getElementById('aInput').focus();
+}
+
+function checkAns(){
+  const inp=document.getElementById('aInput');
+  const user=inp.value.trim().replace(',','.');
+  const m=metrics[currentCard.metricIdx];
+  const correct=String(m.values[currentCard.monthIdx]).trim().replace(',','.');
+  const ok=user===correct;
+
+  inp.disabled=true;
+  const res=document.getElementById('res');
+  res.style.display='block';
+  res.className='result '+(ok?'ok':'bad');
+  document.getElementById('resLbl').textContent=ok?'✅ Doğru!':'❌ Yanlış';
+  document.getElementById('resLbl').className='result-lbl '+(ok?'ok':'bad');
+  document.getElementById('resAns').textContent=ok?m.values[currentCard.monthIdx]:`Doğru: ${m.values[currentCard.monthIdx]}${m.unit?' '+m.unit:''}`;
+
+  if(ok) sessionC++; else sessionW++;
+  document.getElementById('drow').style.display='grid';
+}
+
+function rate(q){
+  const m=metrics[currentCard.metricIdx];
+  m.sm2[currentCard.monthIdx]=sm2Calc(m.sm2[currentCard.monthIdx],q);
+  // re-queue if hard
+  if(q===0) quizQueue.push(currentCard);
+  persist();
+  nextQ();
+}
+
+function showDone(){
+  // save session
+  const today=new Date().toDateString();
+  const ex=sessions.find(s=>s.date===today);
+  if(ex){ex.correct+=sessionC;ex.wrong+=sessionW;}
+  else sessions.push({date:today,correct:sessionC,wrong:sessionW});
+  // streak
+  const yest=new Date(Date.now()-86400000).toDateString();
+  if(sessions.some(s=>s.date===yest)||sessions.length===1) streak++;
+  persist();
+  document.getElementById('streakNum').textContent=streak;
+  const total=sessionC+sessionW;
+  const acc=total>0?Math.round(sessionC/total*100):0;
+  document.getElementById('quizArea').innerHTML=`
+    <div class="done-screen">
+      <div class="done-icon">${acc>=80?'🏆':acc>=60?'👍':'💪'}</div>
+      <div class="done-title">Seans Tamam!</div>
+      <div class="done-sub">${sessionC} doğru · ${sessionW} yanlış · %${acc} başarı</div>
+      <div class="sgrid">
+        <div class="sbox"><div class="snum" style="color:var(--green)">${sessionC}</div><div class="slbl">Doğru</div></div>
+        <div class="sbox"><div class="snum" style="color:var(--red)">${sessionW}</div><div class="slbl">Yanlış</div></div>
+      </div>
+      <button class="btn btn-blue" style="margin-top:16px" onclick="showTab('home')">Ana Sayfaya Dön</button>
+    </div>`;
+  renderHome();
+}
+
+// ── STATS ──
+function renderStats(){
+  // sessions
+  const sl=document.getElementById('sessionList');
+  if(sessions.length===0){sl.innerHTML='<div style="color:var(--muted);font-size:12px">Henüz seans yok.</div>';}
+  else{
+    sl.innerHTML=[...sessions].reverse().slice(0,7).map(s=>{
+      const total=s.correct+s.wrong;
+      const acc=total>0?Math.round(s.correct/total*100):0;
+      const d=new Date(s.date);
+      return `<div class="stat-line">
+        <span class="sl-q">${d.toLocaleDateString('tr-TR',{day:'numeric',month:'short',year:'numeric'})}</span>
+        <span style="font-size:11px;color:var(--muted2)">${s.correct}D/${s.wrong}Y</span>
+        <span style="color:${acc>=70?'var(--green)':'var(--red)'};font-weight:700;font-size:13px">%${acc}</span>
+      </div>`;
+    }).join('');
+  }
+  // question statuses
+  const ql=document.getElementById('qStatusList');
+  const cards=allCards();
+  if(cards.length===0){ql.innerHTML='<div style="color:var(--muted);font-size:12px">Soru yok.</div>';return;}
+  ql.innerHTML=cards.slice(0,20).map(c=>{
+    const m=metrics[c.metricIdx];
+    const sm2=m.sm2[c.monthIdx];
+    const due=isDue(sm2);
+    const dt=new Date(sm2.nextReview);
+    const label=due?'Şimdi':dt.toLocaleDateString('tr-TR',{day:'numeric',month:'short'});
+    return `<div class="stat-line">
+      <span class="sl-q" style="font-size:11px">${m.name} — ${MONTH_SHORT[c.monthIdx]} ${m.year}</span>
+      <span class="sl-v">${m.values[c.monthIdx]}</span>
+      <span class="sl-due" style="color:${due?'var(--accent2)':'var(--muted)'}">${label}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── MODAL HELPERS ──
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function overlayClose(e,id){ if(e.target===document.getElementById(id)) closeModal(id); }
+
+// ── INIT ──
+function refreshAll(){ renderHome();renderData();renderStats(); }
+hydrate();
+</script>
+</body>
+</html>
