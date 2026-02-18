@@ -447,8 +447,22 @@ function buildMonthGrid(vals){
       <input type="text" inputmode="decimal" id="mv${i}" value="${vals[i]||''}"
         class="${vals[i]?'has-val':''}"
         oninput="this.className=this.value?'has-val':''"
+        onpaste="handleExcelPaste(event)"
         placeholder="—">
     </div>`).join('');
+}
+function handleExcelPaste(e){
+  const text=(e.clipboardData||window.clipboardData).getData('text');
+  const parts=text.split(/[\t\n\r]+/).map(p=>p.trim()).filter(p=>p!=='');
+  if(parts.length<12) return;
+  e.preventDefault();
+  for(let i=0;i<12;i++){
+    const input=document.getElementById('mv'+i);
+    if(!input) continue;
+    const val=parts[i]||'';
+    input.value=val;
+    input.className=val?'has-val':'';
+  }
 }
 function saveMetric(){
   const name=document.getElementById('mName').value.trim();
