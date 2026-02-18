@@ -142,8 +142,8 @@ select option{background:var(--s1)}
 .qmeta{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-size:11px;color:var(--muted2)}
 .pbbar{height:3px;background:var(--border);border-radius:2px;margin-bottom:20px;overflow:hidden}
 .pbfill{height:100%;background:var(--accent);transition:width .4s ease}
-.q-tag{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);margin-bottom:6px}
-.q-text{font-family:var(--fd);font-size:21px;font-weight:700;line-height:1.3;margin-bottom:24px}
+.q-tag{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);margin-bottom:6px}
+.q-text{font-family:var(--fd);font-size:26px;font-weight:700;line-height:1.3;margin-bottom:24px}
 
 .ans-row{display:flex;gap:8px;margin-bottom:14px}
 .ans-row input{
@@ -411,17 +411,25 @@ function showTab(name){
 }
 
 // ── HOME ──
+function isQuizSkipped(val){
+  if(val===null||val===undefined) return true;
+  const s=String(val).trim();
+  if(s===''||s==='-') return true;
+  if(s==='0') return true;
+  if(Number(val)===0) return true;
+  return false;
+}
 function allCards(){
   const cards=[];
   metrics.forEach((m,mi)=>{
     if(m.type==='fixed'){
       const items=m.items||[];
       if(!m.sm2) m.sm2=items.map(()=>defaultSM2());
-      items.forEach((it,i)=>{ if((it.value||'').toString().trim()!=='') cards.push({metricIdx:mi,valueIdx:i,isFixed:true}); });
+      items.forEach((it,i)=>{ if(!isQuizSkipped(it.value)) cards.push({metricIdx:mi,valueIdx:i,isFixed:true}); });
     } else {
       if(!m.sm2) m.sm2=Array(12).fill(null).map(defaultSM2);
       (m.values||[]).forEach((v,vi)=>{
-        if(v===''||v===null||v===undefined) return;
+        if(isQuizSkipped(v)) return;
         cards.push({metricIdx:mi,valueIdx:vi,isFixed:false});
       });
     }
