@@ -135,6 +135,8 @@ select option{background:var(--s1)}
 .fixed-row input{flex:1;margin-bottom:0}
 .fixed-row .btn.btn-sm{padding:8px 12px;flex-shrink:0}
 .metric-type-select{margin-bottom:12px}
+.paste-zone-12{margin-bottom:10px}
+.paste-zone-12 input{font-size:12px;margin-bottom:6px}
 
 /* ── QUIZ ── */
 .qmeta{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-size:11px;color:var(--muted2)}
@@ -279,6 +281,9 @@ select option{background:var(--s1)}
       <label>YIL</label>
       <select id="mYear"></select>
       <label>AYLIK DEĞERLER</label>
+      <div class="paste-zone-12">
+        <input type="text" id="paste12Input" placeholder="12 değeri buraya yapıştır → Ocak…Aralık sırasıyla aylara dağılır" onpaste="handleExcelPaste(event)">
+      </div>
       <div class="mgrid" id="monthGrid"></div>
     </div>
     <div id="mFixedBlock" class="fixed-items" onpaste="handleFixedPaste(event)">
@@ -538,6 +543,8 @@ function handleExcelPaste(e){
     input.value=val;
     input.className=val?'has-val':'';
   }
+  const pasteBox=document.getElementById('paste12Input');
+  if(pasteBox) pasteBox.value='';
 }
 function saveMetric(){
   const name=document.getElementById('mName').value.trim();
