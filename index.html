@@ -720,11 +720,13 @@ function nextQ(){
 function checkAns(){
   const inp=document.getElementById('aInput');
   const norm=s=>String(s).trim().replace(',','.').replace(/%/g,'').trim();
-  const user=norm(inp.value);
+  const userStr=norm(inp.value);
   const m=metrics[currentCard.metricIdx];
   const ans=currentCard.isFixed?m.items[currentCard.valueIdx].value:m.values[currentCard.valueIdx];
-  const correct=norm(ans);
-  const ok=user===correct;
+  const correctStr=norm(ans);
+  const userNum=parseFloat(userStr);
+  const correctNum=parseFloat(correctStr);
+  const ok=(Number.isFinite(userNum)&&Number.isFinite(correctNum))?userNum===correctNum:userStr===correctStr;
 
   inp.disabled=true;
   const res=document.getElementById('res');
