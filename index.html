@@ -128,6 +128,14 @@ select option{background:var(--s1)}
 .mcell input:focus{border-bottom-color:var(--accent);outline:none}
 .mcell input.has-val{color:var(--green)}
 
+/* fixed items (değişmez veriler) */
+.fixed-items{display:none;margin-bottom:14px}
+.fixed-items.show{display:block}
+.fixed-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.fixed-row input{flex:1;margin-bottom:0}
+.fixed-row .btn.btn-sm{padding:8px 12px;flex-shrink:0}
+.metric-type-select{margin-bottom:12px}
+
 /* ── QUIZ ── */
 .qmeta{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-size:11px;color:var(--muted2)}
 .pbbar{height:3px;background:var(--border);border-radius:2px;margin-bottom:20px;overflow:hidden}
@@ -259,13 +267,25 @@ select option{background:var(--s1)}
     <div class="modal-handle"></div>
     <div class="modal-title" id="mmTitle">Yeni Metrik</div>
     <label>METRİK ADI</label>
-    <input id="mName" placeholder="Örn: Doluluk Oranı, ADR, Gıda Maliyeti %">
+    <input id="mName" placeholder="Örn: Doluluk Oranı, Makine tamir sıklığı, Personel maaşı">
     <label>BİRİM (opsiyonel)</label>
-    <input id="mUnit" placeholder="Örn: %, TL, EUR — boş bırakabilirsin">
-    <label>YIL</label>
-    <select id="mYear"></select>
-    <label>AYLIK DEĞERLER</label>
-    <div class="mgrid" id="monthGrid"></div>
+    <input id="mUnit" placeholder="Örn: %, TL, sayı — boş bırakabilirsin">
+    <label>VERİ TİPİ</label>
+    <select id="mType" class="metric-type-select" onchange="toggleMetricType()">
+      <option value="12month">12 aylı veriler</option>
+      <option value="fixed">Değişmez veriler</option>
+    </select>
+    <div id="m12Block">
+      <label>YIL</label>
+      <select id="mYear"></select>
+      <label>AYLIK DEĞERLER</label>
+      <div class="mgrid" id="monthGrid"></div>
+    </div>
+    <div id="mFixedBlock" class="fixed-items" onpaste="handleFixedPaste(event)">
+      <label>VERİ İKİLİLERİ (değişken adı + değer) — Excel'den yapıştırabilirsin</label>
+      <div id="fixedItemsList"></div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="addFixedRow()">+ Satır ekle</button>
+    </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-ghost" style="flex:1" onclick="closeModal('metricModal')">İptal</button>
       <button class="btn btn-blue" style="flex:1" onclick="saveMetric()">Kaydet</button>
@@ -312,15 +332,16 @@ const MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağu
 const MONTH_SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
 
 // ── DATA MODEL ──
-// metrics: [{id, name, unit, year, values:[v0..v11], sm2:[{ef,interval,reps,nextReview}x12]}]
+// metrics: type '12month' => {id, name, unit, type:'12month', year, values[12], sm2[12]}
+//          type 'fixed'   => {id, name, unit, type:'fixed', items:[{name,value}], sm2[items.length]}
 // sessions: [{date, correct, wrong}]
 let metrics = [];
 let sessions = [];
 let streak = 0;
 
-// quiz runtime
+// quiz runtime: card = { metricIdx, valueIdx, isFixed } (valueIdx = monthIdx or itemIdx)
 let quizQueue = [];
-let currentCard = null; // {metricIdx, monthIdx, question, answer}
+let currentCard = null;
 let sessionC = 0, sessionW = 0;
 let editingMetricId = null;
 let detailMetricId = null;
@@ -352,7 +373,13 @@ async function persist(){
 async function hydrate(){
   try{
     const m=await window.storage.get('metrics2');
-    if(m) metrics=JSON.parse(m.value);
+    if(m){
+      metrics=JSON.parse(m.value);
+      metrics.forEach(m=>{
+        if(!m.type) m.type='12month';
+        if(m.type==='fixed' && !m.items) m.items=[];
+      });
+    }
     const s=await window.storage.get('sessions2');
     if(s) sessions=JSON.parse(s.value);
     const st=await window.storage.get('streak2');
@@ -379,18 +406,24 @@ function showTab(name){
 function allCards(){
   const cards=[];
   metrics.forEach((m,mi)=>{
-    m.values.forEach((v,vi)=>{
-      if(v===''||v===null||v===undefined) return;
+    if(m.type==='fixed'){
+      const items=m.items||[];
+      if(!m.sm2) m.sm2=items.map(()=>defaultSM2());
+      items.forEach((it,i)=>{ if((it.value||'').toString().trim()!=='') cards.push({metricIdx:mi,valueIdx:i,isFixed:true}); });
+    } else {
       if(!m.sm2) m.sm2=Array(12).fill(null).map(defaultSM2);
-      cards.push({metricIdx:mi,monthIdx:vi});
-    });
+      (m.values||[]).forEach((v,vi)=>{
+        if(v===''||v===null||v===undefined) return;
+        cards.push({metricIdx:mi,valueIdx:vi,isFixed:false});
+      });
+    }
   });
   return cards;
 }
 function renderHome(){
   const all=allCards();
-  const due=all.filter(c=>isDue(metrics[c.metricIdx].sm2[c.monthIdx]));
-  const learned=all.filter(c=>metrics[c.metricIdx].sm2[c.monthIdx]?.reps>=3);
+  const due=all.filter(c=>isDue(metrics[c.metricIdx].sm2[c.valueIdx]));
+  const learned=all.filter(c=>metrics[c.metricIdx].sm2[c.valueIdx]?.reps>=3);
   const tc=sessions.reduce((a,s)=>a+s.correct,0);
   const tw=sessions.reduce((a,s)=>a+s.wrong,0);
   const acc=tc+tw>0?Math.round(tc/(tc+tw)*100):null;
@@ -413,11 +446,13 @@ function renderData(){
     return;
   }
   el.innerHTML=metrics.map(m=>{
-    const filled=m.values.filter(v=>v!==''&&v!==null&&v!==undefined).length;
+    const isFixed=m.type==='fixed';
+    const filled=isFixed?(m.items||[]).length:(m.values||[]).filter(v=>v!==''&&v!==null&&v!==undefined).length;
+    const meta=isFixed?`Değişmez · ${filled} ikili`:(`${m.year||'—'} · ${filled}/12 ay`);
     return `<div class="metric-row" onclick="openDetail('${m.id}')">
       <div>
         <div class="metric-name">${m.name}${m.unit?' <span style="color:var(--muted);font-size:11px">(${m.unit})</span>':''}</div>
-        <div class="metric-meta">${m.year} · ${filled}/12 ay girildi</div>
+        <div class="metric-meta">${meta}</div>
       </div>
       <span class="metric-badge">${filled} soru</span>
     </div>`;
@@ -430,9 +465,49 @@ function openAddMetric(){
   document.getElementById('mmTitle').textContent='Yeni Metrik';
   document.getElementById('mName').value='';
   document.getElementById('mUnit').value='';
+  document.getElementById('mType').value='12month';
+  toggleMetricType();
   buildYearSelect();
   buildMonthGrid(Array(12).fill(''));
+  buildFixedItems([]);
   openModal('metricModal');
+}
+function toggleMetricType(){
+  const type=document.getElementById('mType').value;
+  const is12=type==='12month';
+  document.getElementById('m12Block').style.display=is12?'block':'none';
+  const fix=document.getElementById('mFixedBlock');
+  fix.style.display=is12?'none':'block';
+  if(is12) fix.classList.remove('show'); else fix.classList.add('show');
+}
+function buildFixedItems(items){
+  const el=document.getElementById('fixedItemsList');
+  el.innerHTML=items.map((it,i)=>`
+    <div class="fixed-row">
+      <input type="text" placeholder="Değişken adı" value="${(it.name||'').replace(/"/g,'&quot;')}">
+      <input type="text" inputmode="decimal" placeholder="Değer" value="${(it.value||'').replace(/"/g,'&quot;')}">
+      <button type="button" class="btn btn-red btn-sm" onclick="removeFixedRow(this)" title="Sil">✕</button>
+    </div>`).join('');
+}
+function handleFixedPaste(e){
+  const text=(e.clipboardData||window.clipboardData).getData('text');
+  const lines=text.trim().split(/\r?\n/).map(l=>l.split(/\t/).map(s=>s.trim()));
+  const pairs=lines.filter(parts=>parts.length>=1).map(parts=>({name:parts[0]||'',value:parts.length>=2?parts[1]:''}));
+  if(pairs.length<1) return;
+  e.preventDefault();
+  buildFixedItems(pairs);
+}
+function addFixedRow(){
+  const list=document.getElementById('fixedItemsList');
+  const div=document.createElement('div');
+  div.className='fixed-row';
+  div.innerHTML=`<input type="text" placeholder="Değişken adı" value="">
+    <input type="text" inputmode="decimal" placeholder="Değer" value="">
+    <button type="button" class="btn btn-red btn-sm" onclick="removeFixedRow(this)" title="Sil">✕</button>`;
+  list.appendChild(div);
+}
+function removeFixedRow(btn){
+  btn.closest('.fixed-row').remove();
 }
 function buildYearSelect(){
   const sel=document.getElementById('mYear');
@@ -467,30 +542,39 @@ function handleExcelPaste(e){
 function saveMetric(){
   const name=document.getElementById('mName').value.trim();
   const unit=document.getElementById('mUnit').value.trim();
-  const year=parseInt(document.getElementById('mYear').value);
-  const vals=Array.from({length:12},(_,i)=>document.getElementById('mv'+i).value.trim());
+  const type=document.getElementById('mType').value;
   if(!name){alert('Metrik adı zorunlu');return;}
 
-  if(editingMetricId){
-    const m=metrics.find(m=>m.id===editingMetricId);
-    if(m){
-      m.name=name;m.unit=unit;m.year=year;
-      // update values, reset sm2 only for changed cells
-      vals.forEach((v,i)=>{
-        if(v!==m.values[i]){
-          m.values[i]=v;
-          if(!m.sm2) m.sm2=Array(12).fill(null).map(defaultSM2);
-          m.sm2[i]=defaultSM2();
-        }
-      });
+  if(type==='fixed'){
+    const rows=document.querySelectorAll('#fixedItemsList .fixed-row');
+    const items=[];
+    rows.forEach(r=>{
+      const inputs=r.querySelectorAll('input');
+      const n=(inputs[0]&&inputs[0].value.trim())||'';
+      const v=(inputs[1]&&inputs[1].value.trim())||'';
+      if(n||v) items.push({name:n,value:v});
+    });
+    if(items.length===0){alert('En az bir veri ikilisi ekleyin (değişken adı + değer).');return;}
+    if(editingMetricId){
+      const m=metrics.find(m=>m.id===editingMetricId);
+      if(m){ m.name=name; m.unit=unit; m.type='fixed'; m.items=items; m.sm2=items.map((_,i)=>m.sm2&&m.sm2[i]?m.sm2[i]:defaultSM2()); }
+    } else {
+      metrics.push({ id:Date.now().toString(), name, unit, type:'fixed', items, sm2:items.map(()=>defaultSM2()) });
     }
   } else {
-    metrics.push({
-      id:Date.now().toString(),
-      name,unit,year,
-      values:vals,
-      sm2:Array(12).fill(null).map(defaultSM2)
-    });
+    const year=parseInt(document.getElementById('mYear').value);
+    const vals=Array.from({length:12},(_,i)=>document.getElementById('mv'+i).value.trim());
+    if(editingMetricId){
+      const m=metrics.find(m=>m.id===editingMetricId);
+      if(m){
+        m.name=name;m.unit=unit;m.year=year;m.type='12month';
+        vals.forEach((v,i)=>{
+          if(v!==m.values[i]){ m.values[i]=v; if(!m.sm2) m.sm2=Array(12).fill(null).map(defaultSM2); m.sm2[i]=defaultSM2(); }
+        });
+      }
+    } else {
+      metrics.push({ id:Date.now().toString(), name, unit, type:'12month', year, values:vals, sm2:Array(12).fill(null).map(defaultSM2) });
+    }
   }
   persist();closeModal('metricModal');renderData();renderHome();
 }
@@ -499,14 +583,26 @@ function saveMetric(){
 function openDetail(id){
   detailMetricId=id;
   const m=metrics.find(m=>m.id===id);
-  document.getElementById('dmTitle').textContent=`${m.name} ${m.year}`;
-  document.getElementById('dmGrid').innerHTML=MONTH_SHORT.map((mn,i)=>`
-    <div class="mcell" style="cursor:default">
-      <div class="mcell-label">${mn}</div>
-      <div style="text-align:center;font-size:13px;padding:4px 2px;font-weight:500;color:${m.values[i]?'var(--green)':'var(--muted)'}">
-        ${m.values[i]||'—'}
-      </div>
-    </div>`).join('');
+  document.getElementById('dmTitle').textContent=m.type==='fixed'?m.name:`${m.name} ${m.year}`;
+  const dmGrid=document.getElementById('dmGrid');
+  if(m.type==='fixed'){
+    const items=m.items||[];
+    dmGrid.innerHTML=items.length?items.map(it=>`
+      <div class="stat-line" style="margin-bottom:6px">
+        <span class="sl-q">${it.name||'—'}</span>
+        <span class="sl-v">${it.value||'—'}</span>
+      </div>`).join(''):'<div style="color:var(--muted);font-size:12px">Veri ikilisi yok.</div>';
+    dmGrid.className='';
+  } else {
+    dmGrid.className='mgrid';
+    dmGrid.innerHTML=MONTH_SHORT.map((mn,i)=>`
+      <div class="mcell" style="cursor:default">
+        <div class="mcell-label">${mn}</div>
+        <div style="text-align:center;font-size:13px;padding:4px 2px;font-weight:500;color:${m.values[i]?'var(--green)':'var(--muted)'}">
+          ${m.values[i]||'—'}
+        </div>
+      </div>`).join('');
+  }
   openModal('detailModal');
 }
 function editMetric(){
@@ -516,9 +612,12 @@ function editMetric(){
   document.getElementById('mmTitle').textContent='Metriği Düzenle';
   document.getElementById('mName').value=m.name;
   document.getElementById('mUnit').value=m.unit||'';
+  document.getElementById('mType').value=m.type==='fixed'?'fixed':'12month';
   buildYearSelect();
-  document.getElementById('mYear').value=m.year;
-  buildMonthGrid(m.values);
+  document.getElementById('mYear').value=m.year||new Date().getFullYear();
+  buildMonthGrid(m.type==='12month'?(m.values||[]):Array(12).fill(''));
+  buildFixedItems(m.type==='fixed'?(m.items||[]):[]);
+  toggleMetricType();
   openModal('metricModal');
 }
 function deleteMetric(){
@@ -528,14 +627,14 @@ function deleteMetric(){
 }
 function resetMetric(){
   const m=metrics.find(m=>m.id===detailMetricId);
-  if(m) m.sm2=Array(12).fill(null).map(defaultSM2);
+  if(m) m.sm2=(m.type==='fixed'?(m.items||[]):Array(12)).map(()=>defaultSM2());
   persist();closeModal('detailModal');renderHome();alert('Bu metriğin öğrenme geçmişi sıfırlandı.');
 }
 
 // ── RESET ALL ──
 function confirmReset(){ openModal('resetModal'); }
 function doReset(){
-  metrics.forEach(m=>{ m.sm2=Array(12).fill(null).map(defaultSM2); });
+  metrics.forEach(m=>{ m.sm2=(m.type==='fixed'?(m.items||[]):Array(12)).map(()=>defaultSM2()); });
   sessions=[];streak=0;
   persist();closeModal('resetModal');refreshAll();
   alert('Tüm ilerleme sıfırlandı.');
@@ -545,15 +644,8 @@ function doReset(){
 function startQuiz(){
   sessionC=0;sessionW=0;
   quizQueue=[];
-  // collect all due cards
-  metrics.forEach((m,mi)=>{
-    if(!m.sm2) m.sm2=Array(12).fill(null).map(defaultSM2);
-    m.values.forEach((v,vi)=>{
-      if(v===''||v===null||v===undefined) return;
-      if(isDue(m.sm2[vi])) quizQueue.push({metricIdx:mi,monthIdx:vi});
-    });
-  });
-  // shuffle
+  const cards=allCards();
+  cards.forEach(c=>{ if(isDue(metrics[c.metricIdx].sm2[c.valueIdx])) quizQueue.push(c); });
   for(let i=quizQueue.length-1;i>0;i--){
     const j=Math.floor(Math.random()*(i+1));[quizQueue[i],quizQueue[j]]=[quizQueue[j],quizQueue[i]];
   }
@@ -574,21 +666,22 @@ function nextQ(){
   const card=quizQueue.shift();
   currentCard=card;
   const m=metrics[card.metricIdx];
-  const monthName=MONTHS[card.monthIdx];
-  const ans=m.values[card.monthIdx];
-  const unit=m.unit?' '+m.unit:'';
+  const isFixed=card.isFixed;
+  const tag=isFixed?m.name:m.year+' · '+MONTHS[card.valueIdx];
+  const qText=isFixed?(m.items[card.valueIdx].name+(m.unit?' ('+m.unit+')':'')):(m.name+(m.unit?' ('+m.unit+')':''));
   const total=sessionC+sessionW+quizQueue.length+1;
   const done=sessionC+sessionW;
   const pct=total>0?(done/total)*100:0;
+  const sm2=m.sm2[card.valueIdx];
 
   document.getElementById('quizArea').innerHTML=`
     <div class="qmeta">
       <span>${done+1} / ${total}</span>
-      <span class="chip ${m.sm2[card.monthIdx].reps===0?'chip-new':'chip-rev'}">${m.sm2[card.monthIdx].reps===0?'YENİ':'TEKRAR'}</span>
+      <span class="chip ${sm2.reps===0?'chip-new':'chip-rev'}">${sm2.reps===0?'YENİ':'TEKRAR'}</span>
     </div>
     <div class="pbbar"><div class="pbfill" style="width:${pct}%"></div></div>
-    <div class="q-tag">${m.year} · ${monthName}</div>
-    <div class="q-text">${m.name}${m.unit?' ('+m.unit+')':''}</div>
+    <div class="q-tag">${tag}</div>
+    <div class="q-text">${qText}</div>
     <div class="ans-row">
       <input type="text" id="aInput" inputmode="decimal" placeholder="Cevabın..."
         onkeydown="if(event.key==='Enter')checkAns()">
@@ -610,7 +703,8 @@ function checkAns(){
   const inp=document.getElementById('aInput');
   const user=inp.value.trim().replace(',','.');
   const m=metrics[currentCard.metricIdx];
-  const correct=String(m.values[currentCard.monthIdx]).trim().replace(',','.');
+  const ans=currentCard.isFixed?m.items[currentCard.valueIdx].value:m.values[currentCard.valueIdx];
+  const correct=String(ans).trim().replace(',','.');
   const ok=user===correct;
 
   inp.disabled=true;
@@ -619,7 +713,7 @@ function checkAns(){
   res.className='result '+(ok?'ok':'bad');
   document.getElementById('resLbl').textContent=ok?'✅ Doğru!':'❌ Yanlış';
   document.getElementById('resLbl').className='result-lbl '+(ok?'ok':'bad');
-  document.getElementById('resAns').textContent=ok?m.values[currentCard.monthIdx]:`Doğru: ${m.values[currentCard.monthIdx]}${m.unit?' '+m.unit:''}`;
+  document.getElementById('resAns').textContent=ok?ans:`Doğru: ${ans}${m.unit?' '+m.unit:''}`;
 
   if(ok) sessionC++; else sessionW++;
   document.getElementById('drow').style.display='grid';
@@ -627,8 +721,7 @@ function checkAns(){
 
 function rate(q){
   const m=metrics[currentCard.metricIdx];
-  m.sm2[currentCard.monthIdx]=sm2Calc(m.sm2[currentCard.monthIdx],q);
-  // re-queue if hard
+  m.sm2[currentCard.valueIdx]=sm2Calc(m.sm2[currentCard.valueIdx],q);
   if(q===0) quizQueue.push(currentCard);
   persist();
   nextQ();
@@ -684,13 +777,15 @@ function renderStats(){
   if(cards.length===0){ql.innerHTML='<div style="color:var(--muted);font-size:12px">Soru yok.</div>';return;}
   ql.innerHTML=cards.slice(0,20).map(c=>{
     const m=metrics[c.metricIdx];
-    const sm2=m.sm2[c.monthIdx];
+    const sm2=m.sm2[c.valueIdx];
     const due=isDue(sm2);
     const dt=new Date(sm2.nextReview);
     const label=due?'Şimdi':dt.toLocaleDateString('tr-TR',{day:'numeric',month:'short'});
+    const sub=c.isFixed?m.items[c.valueIdx].name:`${MONTH_SHORT[c.valueIdx]} ${m.year}`;
+    const val=c.isFixed?m.items[c.valueIdx].value:m.values[c.valueIdx];
     return `<div class="stat-line">
-      <span class="sl-q" style="font-size:11px">${m.name} — ${MONTH_SHORT[c.monthIdx]} ${m.year}</span>
-      <span class="sl-v">${m.values[c.monthIdx]}</span>
+      <span class="sl-q" style="font-size:11px">${m.name} — ${sub}</span>
+      <span class="sl-v">${val}</span>
       <span class="sl-due" style="color:${due?'var(--accent2)':'var(--muted)'}">${label}</span>
     </div>`;
   }).join('');
