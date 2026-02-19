@@ -369,9 +369,9 @@ const MONTH_SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Ek
 // Supabase Dashboard > Settings > API'dan alın
 const SUPABASE_URL = 'https://gvapdwdxikctalydaoak.supabase.co';  // https://xxxx.supabase.co
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2YXBkd2R4aWtjdGFseWRhb2FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNDY0MDIsImV4cCI6MjA4NjgyMjQwMn0.35f3j7MUDBzXWKxyZp4oiX-koRWW0AlufqrC61jM7xE';
-let supabase = null;
+let supabaseClient = null;
 if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes('YOUR_')) {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
 // ── STORAGE POLYFILL ──
@@ -420,13 +420,13 @@ async function persist(){
     await window.storage.set('sessions2',JSON.stringify(sessions));
     await window.storage.set('streak2',String(streak));
   }catch(e){}
-  if (supabase) await syncToSupabase();
+  if (supabaseClient) await syncToSupabase();
 }
 async function syncToSupabase(){
-  const { data: { user } } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
-  if (!user || !supabase) return;
+  const { data: { user } } = supabaseClient ? await supabaseClient.auth.getUser() : { data: { user: null } };
+  if (!user || !supabaseClient) return;
   try {
-    await supabase.from('user_profiles').upsert({ id: user.id, streak, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+    await supabaseClient.from('user_profiles').upsert({ id: user.id, streak, updated_at: new Date().toISOString() }, { onConflict: 'id' });
     const metricsRows = metrics.map(m => ({
       id: m.supabase_id || undefined,
       client_id: m.id,
@@ -440,40 +440,39 @@ async function syncToSupabase(){
       sm2: m.sm2 || []
     }));
     for (const row of metricsRows) {
-      const { data: existing } = await supabase.from('metrics').select('id').eq('client_id', row.client_id).eq('user_id', user.id).single();
+      const { data: existing } = await supabaseClient.from('metrics').select('id').eq('client_id', row.client_id).eq('user_id', user.id).single();
       if (existing) {
-        await supabase.from('metrics').update({
+        await supabaseClient.from('metrics').update({
           name: row.name, unit: row.unit, type: row.type, year: row.year,
           values: row.values, items: row.items, sm2: row.sm2, updated_at: new Date().toISOString()
         }).eq('id', existing.id);
         const local = metrics.find(x => x.id === row.client_id);
         if (local) local.supabase_id = existing.id;
       } else {
-        const { data: inserted } = await supabase.from('metrics').insert(row).select('id').single();
+        const { data: inserted } = await supabaseClient.from('metrics').insert(row).select('id').single();
         if (inserted) {
           const local = metrics.find(x => x.id === row.client_id);
           if (local) local.supabase_id = inserted.id;
         }
       }
     }
-    const remoteIds = (await supabase.from('metrics').select('id').eq('user_id', user.id)).data?.map(r => r.id) || [];
     const localClientIds = metrics.map(m => m.id);
-    const toDelete = (await supabase.from('metrics').select('id,client_id').eq('user_id', user.id)).data?.filter(r => r.client_id && !localClientIds.includes(r.client_id)) || [];
-    for (const r of toDelete) await supabase.from('metrics').delete().eq('id', r.id);
+    const toDelete = (await supabaseClient.from('metrics').select('id,client_id').eq('user_id', user.id)).data?.filter(r => r.client_id && !localClientIds.includes(r.client_id)) || [];
+    for (const r of toDelete) await supabaseClient.from('metrics').delete().eq('id', r.id);
     if (sessions.length) {
       const sessionRows = sessions.map(s => ({ user_id: user.id, date: s.date, correct: s.correct, wrong: s.wrong }));
-      await supabase.from('sessions').upsert(sessionRows, { onConflict: 'user_id,date' });
+      await supabaseClient.from('sessions').upsert(sessionRows, { onConflict: 'user_id,date' });
     }
   } catch (e) { console.warn('Supabase sync error:', e); }
 }
 async function hydrate(){
   try{
-    const { data: { user } } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
-    if (user && supabase) {
+    const { data: { user } } = supabaseClient ? await supabaseClient.auth.getUser() : { data: { user: null } };
+    if (user && supabaseClient) {
       const [profRes, metRes, sessRes] = await Promise.all([
-        supabase.from('user_profiles').select('streak').eq('id', user.id).single(),
-        supabase.from('metrics').select('*').eq('user_id', user.id).order('created_at'),
-        supabase.from('sessions').select('*').eq('user_id', user.id).order('date', { ascending: false })
+        supabaseClient.from('user_profiles').select('streak').eq('id', user.id).single(),
+        supabaseClient.from('metrics').select('*').eq('user_id', user.id).order('created_at'),
+        supabaseClient.from('sessions').select('*').eq('user_id', user.id).order('date', { ascending: false })
       ]);
       if (profRes.data) streak = profRes.data.streak || 0;
       if (metRes.data?.length) {
@@ -531,7 +530,7 @@ async function hydrate(){
 function updateAuthUI(){
   const btn = document.getElementById('authBtn');
   if (!btn) return;
-  supabase?.auth.getUser().then(({ data: { user } }) => {
+  supabaseClient?.auth.getUser().then(({ data: { user } }) => {
     btn.textContent = user ? '☁ Senkron' : '☁ Giriş';
     btn.title = user ? 'Bulut senkron aktif' : 'Giriş / Bulut senkron';
   });
@@ -541,7 +540,7 @@ function updateAuthUI(){
 function toggleAuthModal(){
   const form = document.getElementById('authForm');
   const logged = document.getElementById('authLoggedIn');
-  if (!supabase) {
+  if (!supabaseClient) {
     document.getElementById('authError').textContent = 'Supabase yapılandırılmamış. index.html\'de SUPABASE_URL ve SUPABASE_ANON_KEY değerlerini ayarlayın.';
     document.getElementById('authError').style.display = 'block';
     form.style.display = 'block';
@@ -549,7 +548,7 @@ function toggleAuthModal(){
     openModal('authModal');
     return;
   }
-  supabase.auth.getUser().then(({ data: { user } }) => {
+  supabaseClient.auth.getUser().then(({ data: { user } }) => {
     if (user) {
       form.style.display = 'none';
       logged.style.display = 'block';
@@ -567,8 +566,8 @@ async function authSignIn(){
   const password = document.getElementById('authPassword').value;
   const errEl = document.getElementById('authError');
   if (!email || !password) { errEl.textContent = 'E-posta ve şifre gerekli'; errEl.style.display = 'block'; return; }
-  if (!supabase) { errEl.textContent = 'Supabase yapılandırılmamış'; errEl.style.display = 'block'; return; }
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (!supabaseClient) { errEl.textContent = 'Supabase yapılandırılmamış'; errEl.style.display = 'block'; return; }
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
   await hydrate();
@@ -581,8 +580,8 @@ async function authSignUp(){
   const errEl = document.getElementById('authError');
   if (!email || !password) { errEl.textContent = 'E-posta ve şifre gerekli'; errEl.style.display = 'block'; return; }
   if (password.length < 6) { errEl.textContent = 'Şifre en az 6 karakter olmalı'; errEl.style.display = 'block'; return; }
-  if (!supabase) { errEl.textContent = 'Supabase yapılandırılmamış'; errEl.style.display = 'block'; return; }
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (!supabaseClient) { errEl.textContent = 'Supabase yapılandırılmamış'; errEl.style.display = 'block'; return; }
+  const { data, error } = await supabaseClient.auth.signUp({ email, password });
   if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
   await hydrate();
@@ -591,7 +590,7 @@ async function authSignUp(){
   alert('Kayıt başarılı! E-posta doğrulama gerekebilir.');
 }
 async function authSignOut(){
-  if (supabase) await supabase.auth.signOut();
+  if (supabaseClient) await supabaseClient.auth.signOut();
   closeModal('authModal');
   updateAuthUI();
 }
