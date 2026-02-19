@@ -502,24 +502,30 @@ async function hydrate(){
       ]);
       if (profRes.data) streak = profRes.data.streak || 0;
       if (metRes.data?.length) {
-        metrics = metRes.data.map(r => ({
-          id: r.client_id || r.id,
-          supabase_id: r.id,
-          name: r.name,
-          unit: r.unit,
-          type: r.type || '12month',
-          year: r.year,
-          values: r.values || [],
-          items: r.items || [],
-          sm2: r.sm2 || []
-        }));
+        metrics = metRes.data.map(r => {
+          let items = r.items;
+          if (!Array.isArray(items) && typeof items === 'string') try { items = JSON.parse(items || '[]'); } catch(e) { items = []; }
+          if (!Array.isArray(items)) items = r.items || [];
+          return {
+            id: r.client_id || r.id,
+            supabase_id: r.id,
+            name: r.name,
+            unit: r.unit,
+            type: r.type || '12month',
+            year: r.year,
+            values: r.values || [],
+            items: items,
+            sm2: r.sm2 || []
+          };
+        });
         metrics.forEach(m => {
           if (!m.type) m.type = '12month';
           if (m.type === 'fixed' && !m.items) m.items = [];
         });
       }
       if (sessRes.data?.length) sessions = sessRes.data.map(r => ({ date: r.date, correct: r.correct, wrong: r.wrong })).reverse();
-      if (metrics.length === 0 || sessions.length === 0) {
+      const supabaseFetchOk = !metRes.error && !sessRes.error;
+      if ((metrics.length === 0 || sessions.length === 0) && supabaseFetchOk) {
         const m = await window.storage.get('metrics2');
         const s = await window.storage.get('sessions2');
         const st = await window.storage.get('streak2');
@@ -532,7 +538,7 @@ async function hydrate(){
           sessions = sessions.map(ss => ({ ...ss, date: (ss.date?.length === 10) ? ss.date : new Date(ss.date).toISOString().slice(0,10) }));
         }
         if (st?.value && streak === 0) streak = parseInt(st.value) || 0;
-        if (metrics.length || sessions.length) await syncToSupabase();
+        if ((metrics.length || sessions.length) && supabaseFetchOk) await syncToSupabase();
       }
     }
     if (metrics.length === 0 && sessions.length === 0) {
