@@ -902,16 +902,8 @@ function getMultipleChoiceOptions(card){
   let pool=[];
   if(card.isFixed){
     (m.items||[]).forEach((it,i)=>{ if(i!==card.valueIdx&&!isQuizSkipped(it.value)) pool.push(String(it.value)); });
-    metrics.forEach((mm,mi)=>{
-      if(mi===card.metricIdx||mm.type!=='fixed') return;
-      (mm.items||[]).forEach(it=>{ if(!isQuizSkipped(it.value)) pool.push(String(it.value)); });
-    });
   }else{
     (m.values||[]).forEach((v,i)=>{ if(i!==card.valueIdx&&!isQuizSkipped(v)) pool.push(String(v)); });
-    metrics.forEach((mm,mi)=>{
-      if(mi===card.metricIdx||mm.type!=='12month'||mm.year!==m.year) return;
-      (mm.values||[]).forEach(v=>{ if(!isQuizSkipped(v)) pool.push(String(v)); });
-    });
   }
   pool=[...new Set(pool)];
   const wrong=[];
