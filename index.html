@@ -450,25 +450,28 @@ async function syncToSupabase(){
   if (!user || !supabaseClient) return;
   try {
     await supabaseClient.from('user_profiles').upsert({ id: user.id, streak, updated_at: new Date().toISOString() }, { onConflict: 'id' });
-    const metricsRows = metrics.map(m => ({
-      id: m.supabase_id || undefined,
-      client_id: m.id,
-      user_id: user.id,
-      name: m.name,
-      unit: m.unit || null,
-      type: m.type || '12month',
-      year: m.year || null,
-      values: m.type === '12month' ? (m.values || []) : null,
-      items: m.type === 'fixed' ? (m.items || []) : null,
-      sm2: m.sm2 || []
-    }));
+    const metricsRows = metrics.map(m => {
+      const isFixed = m.type === 'fixed';
+      return {
+        client_id: m.id,
+        user_id: user.id,
+        name: m.name,
+        unit: m.unit || null,
+        type: m.type || '12month',
+        year: isFixed ? null : (m.year || null),
+        values: isFixed ? null : (m.values || []),
+        items: isFixed ? (m.items || []) : null,
+        sm2: m.sm2 || []
+      };
+    });
     for (const row of metricsRows) {
-      const { data: existing } = await supabaseClient.from('metrics').select('id').eq('client_id', row.client_id).eq('user_id', user.id).single();
+      const { data: existing } = await supabaseClient.from('metrics').select('id').eq('client_id', row.client_id).eq('user_id', user.id).maybeSingle();
       if (existing) {
-        await supabaseClient.from('metrics').update({
+        const updateData = {
           name: row.name, unit: row.unit, type: row.type, year: row.year,
           values: row.values, items: row.items, sm2: row.sm2, updated_at: new Date().toISOString()
-        }).eq('id', existing.id);
+        };
+        await supabaseClient.from('metrics').update(updateData).eq('id', existing.id);
         const local = metrics.find(x => x.id === row.client_id);
         if (local) local.supabase_id = existing.id;
       } else {
