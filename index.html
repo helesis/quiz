@@ -934,15 +934,18 @@ function startQuiz(){
   quizQueue=[];
   const cards=allCards();
   cards.forEach(c=>{ if(isDue(metrics[c.metricIdx].sm2?.[c.valueIdx])) quizQueue.push(c); });
+  if(quizQueue.length===0&&cards.length>0){
+    quizQueue=cards.slice();
+  }
   for(let i=quizQueue.length-1;i>0;i--){
     const j=Math.floor(Math.random()*(i+1));[quizQueue[i],quizQueue[j]]=[quizQueue[j],quizQueue[i]];
   }
   if(quizQueue.length===0){
     document.getElementById('quizArea').innerHTML=`
       <div class="no-q">
-        <div class="icon">✅</div>
-        <h3>Bugün tamamlandı!</h3>
-        <p style="font-size:12px;margin-top:6px">Tüm sorular güncel. Yeni veri ekle veya bekle.</p>
+        <div class="icon">📋</div>
+        <h3>Henüz soru yok</h3>
+        <p style="font-size:12px;margin-top:6px">Veriler sekmesinden metrik ekleyip değer girin.</p>
       </div>`;
     return;
   }
