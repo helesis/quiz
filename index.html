@@ -358,6 +358,7 @@ let detailMetricId = null;
 function defaultSM2(){ return {ef:2.5,interval:0,reps:0,nextReview:Date.now()} }
 function isDue(sm2){ if(!sm2) return true; if(sm2.reps===0&&sm2.interval===0) return true; return (sm2.nextReview||0)<=Date.now(); }
 function sm2Calc(sm2, q){ // q: 0=hard,1=med,2=easy
+  sm2=sm2||defaultSM2();
   let {ef,interval,reps} = sm2;
   if(q===0){reps=0;interval=1;}
   else{
@@ -690,7 +691,8 @@ function nextQ(){
   const total=sessionC+sessionW+quizQueue.length+1;
   const done=sessionC+sessionW;
   const pct=total>0?(done/total)*100:0;
-  const sm2=m.sm2[card.valueIdx];
+  const sm2=m.sm2[card.valueIdx]||defaultSM2();
+  if(!m.sm2[card.valueIdx]) m.sm2[card.valueIdx]=sm2;
 
   document.getElementById('quizArea').innerHTML=`
     <div class="qmeta">
@@ -742,7 +744,7 @@ function checkAns(){
 
 function rate(q){
   const m=metrics[currentCard.metricIdx];
-  m.sm2[currentCard.valueIdx]=sm2Calc(m.sm2[currentCard.valueIdx],q);
+  m.sm2[currentCard.valueIdx]=sm2Calc(m.sm2[currentCard.valueIdx]||defaultSM2(),q);
   if(q===0) quizQueue.push(currentCard);
   persist();
   nextQ();
@@ -798,9 +800,9 @@ function renderStats(){
   if(cards.length===0){ql.innerHTML='<div style="color:var(--muted);font-size:12px">Soru yok.</div>';return;}
   ql.innerHTML=cards.slice(0,20).map(c=>{
     const m=metrics[c.metricIdx];
-    const sm2=m.sm2[c.valueIdx];
+    const sm2=m.sm2[c.valueIdx]||defaultSM2();
     const due=isDue(sm2);
-    const dt=new Date(sm2.nextReview);
+    const dt=new Date(sm2.nextReview||Date.now());
     const label=due?'Şimdi':dt.toLocaleDateString('tr-TR',{day:'numeric',month:'short'});
     const sub=c.isFixed?m.items[c.valueIdx].name:`${MONTH_SHORT[c.valueIdx]} ${m.year}`;
     const val=c.isFixed?m.items[c.valueIdx].value:m.values[c.valueIdx];
