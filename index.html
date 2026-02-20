@@ -682,8 +682,8 @@ function setQuizMode(mode){
 }
 function renderHome(){
   const all=allCards();
-  const due=all.filter(c=>isDue(metrics[c.metricIdx].sm2[c.valueIdx]));
-  const learned=all.filter(c=>metrics[c.metricIdx].sm2[c.valueIdx]?.reps>=3);
+  const due=all.filter(c=>isDue(metrics[c.metricIdx].sm2?.[c.valueIdx]));
+  const learned=all.filter(c=>(metrics[c.metricIdx].sm2?.[c.valueIdx]?.reps??0)>=3);
   const tc=sessions.reduce((a,s)=>a+s.correct,0);
   const tw=sessions.reduce((a,s)=>a+s.wrong,0);
   const acc=tc+tw>0?Math.round(tc/(tc+tw)*100):null;
@@ -847,7 +847,8 @@ function saveMetric(){
 // ── MODAL: DETAIL ──
 function openDetail(id){
   detailMetricId=id;
-  const m=metrics.find(m=>m.id===id);
+  const m=metrics.find(x=>x.id===id);
+  if(!m) return;
   document.getElementById('dmTitle').textContent=m.type==='fixed'?m.name:`${m.name} ${m.year}`;
   const dmGrid=document.getElementById('dmGrid');
   if(m.type==='fixed'){
@@ -932,7 +933,7 @@ function startQuiz(){
   sessionC=0;sessionW=0;
   quizQueue=[];
   const cards=allCards();
-  cards.forEach(c=>{ if(isDue(metrics[c.metricIdx].sm2[c.valueIdx])) quizQueue.push(c); });
+  cards.forEach(c=>{ if(isDue(metrics[c.metricIdx].sm2?.[c.valueIdx])) quizQueue.push(c); });
   for(let i=quizQueue.length-1;i>0;i--){
     const j=Math.floor(Math.random()*(i+1));[quizQueue[i],quizQueue[j]]=[quizQueue[j],quizQueue[i]];
   }
