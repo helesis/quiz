@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="theme-color" content="#080c18">
 <title>KPI Quiz</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap');
 
@@ -152,6 +153,19 @@ select option{background:var(--s1)}
 }
 .ans-row .btn{width:auto;padding:13px 18px;flex-shrink:0}
 
+/* multiple choice */
+.mc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.mc-btn{
+  padding:16px;border-radius:12px;border:2px solid var(--border);
+  background:var(--s2);color:var(--text);font-family:var(--fd);
+  font-size:16px;font-weight:600;cursor:pointer;transition:all .15s;
+  text-align:center
+}
+.mc-btn:hover{border-color:var(--accent);background:rgba(56,189,248,.08)}
+.mc-btn:active{transform:scale(.98)}
+.mc-btn.correct{border-color:var(--green);background:rgba(52,211,153,.15)}
+.mc-btn.wrong{border-color:var(--red);background:rgba(248,113,113,.15)}
+
 .result{border-radius:10px;padding:14px 16px;margin-bottom:14px;display:none}
 .result.ok{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25)}
 .result.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25)}
@@ -203,6 +217,7 @@ select option{background:var(--s1)}
   <header>
     <div class="logo">KPI<b>Quiz</b></div>
     <div style="display:flex;align-items:center;gap:8px">
+      <button type="button" class="btn btn-ghost btn-sm" id="authBtn" onclick="toggleAuthModal()" title="Giriş / Bulut senkron">☁ Giriş</button>
       <button type="button" class="btn btn-ghost btn-sm" onclick="pwaUpdate()" title="Güncellemeleri al (önbelleği atla)">↻ Güncelle</button>
       <div class="streak-pill">🔥 <span id="streakNum">0</span></div>
     </div>
@@ -227,7 +242,14 @@ select option{background:var(--s1)}
       </div>
       <div class="card">
         <div class="card-head">Bugünkü Seans</div>
-        <p style="font-size:12px;color:var(--muted2);margin-bottom:14px" id="hSub">Veri sekmesinden metrik ekle.</p>
+        <p style="font-size:12px;color:var(--muted2);margin-bottom:10px" id="hSub">Veri sekmesinden metrik ekle.</p>
+        <div style="margin-bottom:12px">
+          <label style="margin-bottom:6px">CEVAP MODU</label>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn btn-sm" id="quizModeText" onclick="setQuizMode('text')">✎ Metin</button>
+            <button type="button" class="btn btn-sm" id="quizModeMc" onclick="setQuizMode('multiple')">☑ Çoktan seçmeli</button>
+          </div>
+        </div>
         <button class="btn btn-blue" onclick="showTab('quiz')">▶ Teste Başla</button>
       </div>
       <div class="card reset-section">
@@ -316,6 +338,30 @@ select option{background:var(--s1)}
   </div>
 </div>
 
+<!-- MODAL: Auth (login/signup) -->
+<div class="overlay" id="authModal" onclick="overlayClose(event,'authModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="authModalTitle">Buluta Bağlan</div>
+    <p style="font-size:12px;color:var(--muted2);margin-bottom:14px">Giriş yaparak verilerinizi Supabase bulutuna senkron edebilirsiniz.</p>
+    <div id="authForm">
+      <label>E-posta</label>
+      <input type="email" id="authEmail" placeholder="ornek@email.com">
+      <label>Şifre</label>
+      <input type="password" id="authPassword" placeholder="••••••••">
+      <div id="authError" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" style="flex:1" onclick="authSignIn()">Giriş</button>
+        <button class="btn btn-blue" style="flex:1" onclick="authSignUp()">Kayıt Ol</button>
+      </div>
+    </div>
+    <div id="authLoggedIn" style="display:none">
+      <p style="font-size:13px;margin-bottom:12px"><span id="authUserEmail"></span> olarak giriş yapıldı.</p>
+      <button class="btn btn-red btn-sm" onclick="authSignOut()">Çıkış Yap</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Metric detail (edit/delete) -->
 <div class="overlay" id="detailModal" onclick="overlayClose(event,'detailModal')">
   <div class="modal">
@@ -339,6 +385,23 @@ select option{background:var(--s1)}
 const MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 const MONTH_SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
 
+// ── SUPABASE CONFIG ──
+// Supabase Dashboard > Settings > API'dan alın
+const SUPABASE_URL = 'https://gvapdwdxikctalydaoak.supabase.co';  // https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2YXBkd2R4aWtjdGFseWRhb2FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNDY0MDIsImV4cCI6MjA4NjgyMjQwMn0.35f3j7MUDBzXWKxyZp4oiX-koRWW0AlufqrC61jM7xE';
+let supabaseClient = null;
+if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes('YOUR_')) {
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+// ── STORAGE POLYFILL ──
+if (!window.storage) {
+  window.storage = {
+    async set(k, v) { try { localStorage.setItem(k, v); } catch(e) {} },
+    async get(k) { try { return { value: localStorage.getItem(k) }; } catch(e) { return null; } }
+  };
+}
+
 // ── DATA MODEL ──
 // metrics: type '12month' => {id, name, unit, type:'12month', year, values[12], sm2[12]}
 //          type 'fixed'   => {id, name, unit, type:'fixed', items:[{name,value}], sm2[items.length]}
@@ -346,10 +409,12 @@ const MONTH_SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Ek
 let metrics = [];
 let sessions = [];
 let streak = 0;
+let quizMode = 'text';  // 'text' | 'multiple'
 
 // quiz runtime: card = { metricIdx, valueIdx, isFixed } (valueIdx = monthIdx or itemIdx)
 let quizQueue = [];
 let currentCard = null;
+let currentMcOptions = [];
 let sessionC = 0, sessionW = 0;
 let editingMetricId = null;
 let detailMetricId = null;
@@ -371,30 +436,198 @@ function sm2Calc(sm2, q){ // q: 0=hard,1=med,2=easy
   return {ef,interval,reps,nextReview:Date.now()+interval*86400000};
 }
 
-// ── STORAGE ──
+// ── STORAGE & SUPABASE SYNC ──
 async function persist(){
   try{
     await window.storage.set('metrics2',JSON.stringify(metrics));
     await window.storage.set('sessions2',JSON.stringify(sessions));
     await window.storage.set('streak2',String(streak));
+    await window.storage.set('quizMode2',quizMode);
   }catch(e){}
+  if (supabaseClient) await syncToSupabase();
+}
+async function syncToSupabase(){
+  const { data: { user } } = supabaseClient ? await supabaseClient.auth.getUser() : { data: { user: null } };
+  if (!user || !supabaseClient) return;
+  try {
+    await supabaseClient.from('user_profiles').upsert({ id: user.id, streak, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+    const metricsRows = metrics.map(m => {
+      const isFixed = m.type === 'fixed';
+      return {
+        client_id: m.id,
+        user_id: user.id,
+        name: m.name,
+        unit: m.unit || null,
+        type: m.type || '12month',
+        year: isFixed ? null : (m.year || null),
+        values: isFixed ? null : (m.values || []),
+        items: isFixed ? (m.items || []) : null,
+        sm2: m.sm2 || []
+      };
+    });
+    for (const row of metricsRows) {
+      const { data: existing } = await supabaseClient.from('metrics').select('id').eq('client_id', row.client_id).eq('user_id', user.id).maybeSingle();
+      if (existing) {
+        const updateData = {
+          name: row.name, unit: row.unit, type: row.type, year: row.year,
+          values: row.values, items: row.items, sm2: row.sm2, updated_at: new Date().toISOString()
+        };
+        await supabaseClient.from('metrics').update(updateData).eq('id', existing.id);
+        const local = metrics.find(x => x.id === row.client_id);
+        if (local) local.supabase_id = existing.id;
+      } else {
+        const { data: inserted } = await supabaseClient.from('metrics').insert(row).select('id').single();
+        if (inserted) {
+          const local = metrics.find(x => x.id === row.client_id);
+          if (local) local.supabase_id = inserted.id;
+        }
+      }
+    }
+    const localClientIds = metrics.map(m => m.id);
+    const toDelete = (await supabaseClient.from('metrics').select('id,client_id').eq('user_id', user.id)).data?.filter(r => r.client_id && !localClientIds.includes(r.client_id)) || [];
+    for (const r of toDelete) await supabaseClient.from('metrics').delete().eq('id', r.id);
+    if (sessions.length) {
+      const sessionRows = sessions.map(s => ({ user_id: user.id, date: s.date, correct: s.correct, wrong: s.wrong }));
+      await supabaseClient.from('sessions').upsert(sessionRows, { onConflict: 'user_id,date' });
+    }
+  } catch (e) { console.warn('Supabase sync error:', e); }
 }
 async function hydrate(){
   try{
-    const m=await window.storage.get('metrics2');
-    if(m){
-      metrics=JSON.parse(m.value);
-      metrics.forEach(m=>{
-        if(!m.type) m.type='12month';
-        if(m.type==='fixed' && !m.items) m.items=[];
-      });
+    const { data: { user } } = supabaseClient ? await supabaseClient.auth.getUser() : { data: { user: null } };
+    if (user && supabaseClient) {
+      const [profRes, metRes, sessRes] = await Promise.all([
+        supabaseClient.from('user_profiles').select('streak').eq('id', user.id).single(),
+        supabaseClient.from('metrics').select('*').eq('user_id', user.id).order('created_at'),
+        supabaseClient.from('sessions').select('*').eq('user_id', user.id).order('date', { ascending: false })
+      ]);
+      if (profRes.data) streak = profRes.data.streak || 0;
+      if (metRes.data?.length) {
+        metrics = metRes.data.map(r => {
+          let items = r.items;
+          if (!Array.isArray(items) && typeof items === 'string') try { items = JSON.parse(items || '[]'); } catch(e) { items = []; }
+          if (!Array.isArray(items)) items = r.items || [];
+          return {
+            id: r.client_id || r.id,
+            supabase_id: r.id,
+            name: r.name,
+            unit: r.unit,
+            type: r.type || '12month',
+            year: r.year,
+            values: r.values || [],
+            items: items,
+            sm2: r.sm2 || []
+          };
+        });
+        metrics.forEach(m => {
+          if (!m.type) m.type = '12month';
+          if (m.type === 'fixed' && !m.items) m.items = [];
+        });
+      }
+      if (sessRes.data?.length) sessions = sessRes.data.map(r => ({ date: r.date, correct: r.correct, wrong: r.wrong })).reverse();
+      const supabaseFetchOk = !metRes.error && !sessRes.error;
+      if ((metrics.length === 0 || sessions.length === 0) && supabaseFetchOk) {
+        const m = await window.storage.get('metrics2');
+        const s = await window.storage.get('sessions2');
+        const st = await window.storage.get('streak2');
+        if (m?.value && metrics.length === 0) {
+          metrics = JSON.parse(m.value);
+          metrics.forEach(m => { if (!m.type) m.type = '12month'; if (m.type === 'fixed' && !m.items) m.items = []; });
+        }
+        if (s?.value && sessions.length === 0) {
+          sessions = JSON.parse(s.value);
+          sessions = sessions.map(ss => ({ ...ss, date: (ss.date?.length === 10) ? ss.date : new Date(ss.date).toISOString().slice(0,10) }));
+        }
+        if (st?.value && streak === 0) streak = parseInt(st.value) || 0;
+        if ((metrics.length || sessions.length) && supabaseFetchOk) await syncToSupabase();
+      }
     }
-    const s=await window.storage.get('sessions2');
-    if(s) sessions=JSON.parse(s.value);
-    const st=await window.storage.get('streak2');
-    if(st) streak=parseInt(st.value)||0;
+    if (metrics.length === 0 && sessions.length === 0) {
+      const m = await window.storage.get('metrics2');
+      if (m?.value) {
+        metrics = JSON.parse(m.value);
+        metrics.forEach(m => { if (!m.type) m.type = '12month'; if (m.type === 'fixed' && !m.items) m.items = []; });
+      }
+      const s = await window.storage.get('sessions2');
+      if (s?.value) {
+        sessions = JSON.parse(s.value);
+        sessions = sessions.map(s => ({ ...s, date: (s.date?.length === 10) ? s.date : new Date(s.date).toISOString().slice(0,10) }));
+      }
+      const st = await window.storage.get('streak2');
+      if (st?.value) streak = parseInt(st.value) || 0;
+    }
   }catch(e){}
+  const qm = await window.storage.get('quizMode2');
+  if (qm?.value) quizMode = qm.value === 'multiple' ? 'multiple' : 'text';
   refreshAll();
+  updateAuthUI();
+}
+function updateAuthUI(){
+  const btn = document.getElementById('authBtn');
+  if (!btn) return;
+  supabaseClient?.auth.getUser().then(({ data: { user } }) => {
+    btn.textContent = user ? '☁ Senkron' : '☁ Giriş';
+    btn.title = user ? 'Bulut senkron aktif' : 'Giriş / Bulut senkron';
+  });
+}
+
+// ── AUTH ──
+function toggleAuthModal(){
+  const form = document.getElementById('authForm');
+  const logged = document.getElementById('authLoggedIn');
+  if (!supabaseClient) {
+    document.getElementById('authError').textContent = 'Supabase yapılandırılmamış. index.html\'de SUPABASE_URL ve SUPABASE_ANON_KEY değerlerini ayarlayın.';
+    document.getElementById('authError').style.display = 'block';
+    form.style.display = 'block';
+    logged.style.display = 'none';
+    openModal('authModal');
+    return;
+  }
+  supabaseClient.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      form.style.display = 'none';
+      logged.style.display = 'block';
+      document.getElementById('authUserEmail').textContent = user.email;
+    } else {
+      form.style.display = 'block';
+      logged.style.display = 'none';
+      document.getElementById('authError').style.display = 'none';
+    }
+  });
+  openModal('authModal');
+}
+async function authSignIn(){
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errEl = document.getElementById('authError');
+  if (!email || !password) { errEl.textContent = 'E-posta ve şifre gerekli'; errEl.style.display = 'block'; return; }
+  if (!supabaseClient) { errEl.textContent = 'Supabase yapılandırılmamış'; errEl.style.display = 'block'; return; }
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+  await hydrate();
+  closeModal('authModal');
+  updateAuthUI();
+}
+async function authSignUp(){
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errEl = document.getElementById('authError');
+  if (!email || !password) { errEl.textContent = 'E-posta ve şifre gerekli'; errEl.style.display = 'block'; return; }
+  if (password.length < 6) { errEl.textContent = 'Şifre en az 6 karakter olmalı'; errEl.style.display = 'block'; return; }
+  if (!supabaseClient) { errEl.textContent = 'Supabase yapılandırılmamış'; errEl.style.display = 'block'; return; }
+  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+  await hydrate();
+  closeModal('authModal');
+  updateAuthUI();
+  alert('Kayıt başarılı! E-posta doğrulama gerekebilir.');
+}
+async function authSignOut(){
+  if (supabaseClient) await supabaseClient.auth.signOut();
+  closeModal('authModal');
+  updateAuthUI();
 }
 
 // ── TABS ──
@@ -437,6 +670,16 @@ function allCards(){
   });
   return cards;
 }
+function setQuizMode(mode){
+  quizMode=mode;
+  persist();
+  const t=document.getElementById('quizModeText');
+  const m=document.getElementById('quizModeMc');
+  if(t&&m){
+    t.className='btn btn-sm '+(mode==='text'?'btn-blue':'btn-ghost');
+    m.className='btn btn-sm '+(mode==='multiple'?'btn-blue':'btn-ghost');
+  }
+}
 function renderHome(){
   const all=allCards();
   const due=all.filter(c=>isDue(metrics[c.metricIdx].sm2[c.valueIdx]));
@@ -449,6 +692,9 @@ function renderHome(){
   document.getElementById('hLearned').textContent=learned.length;
   document.getElementById('hAcc').textContent=acc!==null?acc+'%':'—';
   document.getElementById('streakNum').textContent=streak;
+  const t=document.getElementById('quizModeText');
+  const m=document.getElementById('quizModeMc');
+  if(t&&m){ t.className='btn btn-sm '+(quizMode==='text'?'btn-blue':'btn-ghost'); m.className='btn btn-sm '+(quizMode==='multiple'?'btn-blue':'btn-ghost'); }
   document.getElementById('hSub').textContent=
     all.length===0?'Veri sekmesinden metrik ekle.':
     due.length>0?`${due.length} soru tekrar zamanı geldi.`:
@@ -660,6 +906,28 @@ function doReset(){
 }
 
 // ── QUIZ ──
+function getMultipleChoiceOptions(card){
+  const m=metrics[card.metricIdx];
+  const correct=card.isFixed?m.items[card.valueIdx].value:m.values[card.valueIdx];
+  let pool=[];
+  if(card.isFixed){
+    (m.items||[]).forEach((it,i)=>{ if(i!==card.valueIdx&&!isQuizSkipped(it.value)) pool.push(String(it.value)); });
+  }else{
+    (m.values||[]).forEach((v,i)=>{ if(i!==card.valueIdx&&!isQuizSkipped(v)) pool.push(String(v)); });
+  }
+  pool=[...new Set(pool)];
+  const wrong=[];
+  while(wrong.length<3&&pool.length>0){
+    const i=Math.floor(Math.random()*pool.length);
+    const v=pool[i];
+    if(v!==String(correct)&&!wrong.includes(v)) wrong.push(v);
+    pool.splice(i,1);
+  }
+  while(wrong.length<3) wrong.push('?');
+  const opts=[correct,...wrong.slice(0,3)];
+  for(let i=opts.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1));[opts[i],opts[j]]=[opts[j],opts[i]]; }
+  return opts;
+}
 function startQuiz(){
   sessionC=0;sessionW=0;
   quizQueue=[];
@@ -694,6 +962,17 @@ function nextQ(){
   const sm2=m.sm2[card.valueIdx]||defaultSM2();
   if(!m.sm2[card.valueIdx]) m.sm2[card.valueIdx]=sm2;
 
+  const isMc=quizMode==='multiple';
+  const opts=isMc?getMultipleChoiceOptions(card):[];
+  currentMcOptions=opts;
+  const ansBlock=isMc
+    ?`<div class="mc-grid" id="mcGrid">${opts.map((v,i)=>`<button type="button" class="mc-btn" data-idx="${i}" onclick="checkAnsMc(this)">${escapeHtml(String(v))}${m.unit?' '+m.unit:''}</button>`).join('')}</div>`
+    :`<div class="ans-row">
+      <input type="text" id="aInput" inputmode="decimal" placeholder="Cevabın..."
+        onkeydown="if(event.key==='Enter')checkAns()">
+      <button class="btn btn-blue" style="width:auto;padding:13px 16px" onclick="checkAns()">→</button>
+    </div>`;
+
   document.getElementById('quizArea').innerHTML=`
     <div class="qmeta">
       <span>${done+1} / ${total}</span>
@@ -702,11 +981,7 @@ function nextQ(){
     <div class="pbbar"><div class="pbfill" style="width:${pct}%"></div></div>
     <div class="q-tag">${tag}</div>
     <div class="q-text">${qText}</div>
-    <div class="ans-row">
-      <input type="text" id="aInput" inputmode="decimal" placeholder="Cevabın..."
-        onkeydown="if(event.key==='Enter')checkAns()">
-      <button class="btn btn-blue" style="width:auto;padding:13px 16px" onclick="checkAns()">→</button>
-    </div>
+    ${ansBlock}
     <div class="result" id="res">
       <div class="result-lbl" id="resLbl"></div>
       <div class="result-ans" id="resAns"></div>
@@ -716,13 +991,18 @@ function nextQ(){
       <button class="dbtn d-med" onclick="rate(1)">🤔 Orta</button>
       <button class="dbtn d-easy" onclick="rate(2)">😊 Kolay</button>
     </div>`;
-  document.getElementById('aInput').focus();
+  if(!isMc) document.getElementById('aInput')?.focus();
 }
 
-function checkAns(){
-  const inp=document.getElementById('aInput');
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function checkAnsMc(btn){
+  const idx=parseInt(btn.dataset.idx,10);
+  const val=currentMcOptions[idx];
+  if(val!==undefined) checkAns(val);
+}
+function checkAns(mcVal){
   const norm=s=>String(s).trim().replace(',','.').replace(/%/g,'').trim();
-  const userStr=norm(inp.value);
+  const userStr=mcVal!==undefined?norm(String(mcVal)):norm(document.getElementById('aInput')?.value||'');
   const m=metrics[currentCard.metricIdx];
   const ans=currentCard.isFixed?m.items[currentCard.valueIdx].value:m.values[currentCard.valueIdx];
   const correctStr=norm(ans);
@@ -730,7 +1010,18 @@ function checkAns(){
   const correctNum=parseFloat(correctStr);
   const ok=(Number.isFinite(userNum)&&Number.isFinite(correctNum))?userNum===correctNum:userStr===correctStr;
 
-  inp.disabled=true;
+  const inp=document.getElementById('aInput');
+  if(inp) inp.disabled=true;
+  if(quizMode==='multiple'){
+    document.querySelectorAll('#mcGrid .mc-btn').forEach(b=>{
+      b.disabled=true;
+      const v=currentMcOptions[parseInt(b.dataset.idx,10)];
+      const isCorrectVal=norm(String(v))===correctStr;
+      const isUserPick=norm(String(v))===userStr;
+      if(isCorrectVal) b.classList.add('correct');
+      else if(isUserPick) b.classList.add('wrong');
+    });
+  }
   const res=document.getElementById('res');
   res.style.display='block';
   res.className='result '+(ok?'ok':'bad');
@@ -752,12 +1043,12 @@ function rate(q){
 
 function showDone(){
   // save session
-  const today=new Date().toDateString();
+  const today=new Date().toISOString().slice(0,10);
   const ex=sessions.find(s=>s.date===today);
   if(ex){ex.correct+=sessionC;ex.wrong+=sessionW;}
   else sessions.push({date:today,correct:sessionC,wrong:sessionW});
   // streak
-  const yest=new Date(Date.now()-86400000).toDateString();
+  const yest=new Date(Date.now()-86400000).toISOString().slice(0,10);
   if(sessions.some(s=>s.date===yest)||sessions.length===1) streak++;
   persist();
   document.getElementById('streakNum').textContent=streak;
